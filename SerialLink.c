@@ -119,7 +119,7 @@ extern int verbosity;
 /****************************************************************************/
 /***        Local Functions                                               ***/
 /****************************************************************************/
-
+//-读串口数据,如果没有立即返回,如果有那么进行最底层的转译,校验等,把最终报文进行返回
 teSL_Status eSL_ReadMessage(uint16_t *pu16Type, uint16_t *pu16Length, uint16_t u16MaxLength, uint8_t *pu8Message)
 {
 
@@ -129,13 +129,13 @@ teSL_Status eSL_ReadMessage(uint16_t *pu16Type, uint16_t *pu16Length, uint16_t u
     static uint16_t u16Bytes;
     static bool bInEsc = FALSE;
 
-    while(bSL_RxByte(&u8Data))
+    while(bSL_RxByte(&u8Data))	//-这里是目前整个程序唯一读一个字节的地方
     {
         DBG_vPrintf(DBG_SERIALLINK_COMMS, "0x%02x\n", u8Data);
         switch(u8Data)
         {
 
-        case SL_START_CHAR:
+        case SL_START_CHAR:	//-读到了开始标志
             u16Bytes = 0;
             bInEsc = FALSE;
             DBG_vPrintf(DBG_SERIALLINK_COMMS, "RX Start\n");
@@ -258,16 +258,16 @@ teSL_Status eSL_ReadMessage(uint16_t *pu16Type, uint16_t *pu16Length, uint16_t u
 * RETURNS:
 * void
 ****************************************************************************/
-teSL_Status eSL_WriteMessage(uint16_t u16Type, uint16_t u16Length, uint8_t *pu8Data)
+teSL_Status eSL_WriteMessage(uint16_t u16Type, uint16_t u16Length, uint8_t *pu8Data)	//-实现数据的发送,会自动对有效数据组织成最终报文
 {
     int n;
     uint8_t u8CRC;
 
-    u8CRC = u8SL_CalculateCRC(u16Type, u16Length, pu8Data);
+    u8CRC = u8SL_CalculateCRC(u16Type, u16Length, pu8Data);	//-计算CRC数值,知道结果即可不需要深究
 
     //printf("\neSL_WriteMessage (0x%04X, %d, %02x)\n", u16Type, u16Length, u8CRC);
 
-    if (verbosity >= 10)
+    if (verbosity >= 10)	//-log信息输出的控制
     {
         char acBuffer[4096];
         int iPosition = 0, i;
@@ -279,7 +279,7 @@ teSL_Status eSL_WriteMessage(uint16_t u16Type, uint16_t u16Length, uint8_t *pu8D
         }
         printf( "%s", acBuffer);
     }
-    
+    //-这里开始对原始数据进行发送,转译不用应用层考虑
     /* Send start character */
     if (iSL_TxByte(TRUE, SL_START_CHAR) < 0) return E_SL_ERROR;
 
@@ -331,11 +331,11 @@ static uint8_t u8SL_CalculateCRC(uint16_t u16Type, uint16_t u16Length, uint8_t *
 * DESCRIPTION:
 *
 * PARAMETERS:  Name                RW  Usage
-*
+*								bSpecialCharacter		表示是否是特殊符号,是就不需要转化
 * RETURNS:
 * void
 ****************************************************************************/
-static int iSL_TxByte(bool bSpecialCharacter, uint8_t u8Data)
+static int iSL_TxByte(bool bSpecialCharacter, uint8_t u8Data)	//-原始数据一个字节一个字节的发送,如果需要的话会自动转译,所以上层不用考虑转译
 {
     if(!bSpecialCharacter && (u8Data < 0x10))
     {

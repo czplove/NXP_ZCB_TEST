@@ -71,8 +71,8 @@ int main(int argc, char *argv[])
     // get cmd line paras
 	int8_t opt;
 	int option_index;
-	
-	while ((opt = getopt_long(argc, argv, "hs:B:R:S:G:P:", long_options, &option_index)) != -1) 
+	//-和getopt相比即实现了功能,也增加了自己的功能,比如增加了长参数,可以更形象的命令含义
+	while ((opt = getopt_long(argc, argv, "hs:B:R:S:G:P:", long_options, &option_index)) != -1) //-解析命令行参数,来运行程序
 	{
 		switch (opt) 
 		{
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 				break;
 
             case 'B':
-                sscanf(optarg, "%d", &u32BaudRate);
+                sscanf(optarg, "%d", &u32BaudRate);	//-sscanf会从buffer里读进数据，依照format的格式将数据写入到argument里。
                 break;
 
             case 'R':
@@ -110,14 +110,14 @@ int main(int argc, char *argv[])
 		}
 	}
 
-    if (eSerial_Init(pcSerialDevice, u32BaudRate, &gSerial_fd) != E_SERIAL_OK)
+    if (eSerial_Init(pcSerialDevice, u32BaudRate, &gSerial_fd) != E_SERIAL_OK)	//-初始化串口
     {
         return -1;
     }
 
     init_global_vars();
     
-    ret = pthread_create(&gSerial_readerTh, NULL, pvSerialReaderThread, NULL);
+    ret = pthread_create(&gSerial_readerTh, NULL, pvSerialReaderThread, NULL);	//-这里引入了一个线程,是一个重要的编程思想.
 	if (ret != 0)
 	{
 	    printf("Create serial reader thread failed !\n");
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
 
     // main input cmd handle loop
     printf("\n");
-    while (1)
+    while (1)	//-主线程里面干的事情在这
     {
         printf("$ Input test command(type help for cmd usage)>");
         if (input_cmd_handler() != 0)
@@ -138,6 +138,7 @@ int main(int argc, char *argv[])
         }
     }
 
+	//-下面都是程序结束后的清理工作了
     /* Clean up */    
 	ret = pthread_cancel(gSerial_readerTh);
 	if (ret != 0)
@@ -146,7 +147,7 @@ int main(int argc, char *argv[])
 	  return E_SL_ERROR;
 	}
 	
-	ret = pthread_join(gSerial_readerTh, &res);
+	ret = pthread_join(gSerial_readerTh, &res);	//-等待一个线程的结束,线程间同步的操作。
 	if (ret != 0)
 	{
 	  printf( "join serial reader failed !\n");

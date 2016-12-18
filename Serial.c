@@ -184,7 +184,7 @@ teSerial_Status eSerial_Init(char *name, uint32_t baud, int *piserial_fd)
             return E_SERIAL_ERROR;
     }
     
-    fd = open(name, O_RDWR | O_NOCTTY);
+    fd = open(name, O_RDWR | O_NOCTTY);	//-只要包含了正确的头文件,在这应用层的操作这个接口参数就可以了,具体操作系统驱动层会满足
     if (fd < 0)
     {
         DEBUG_PRINTF( "Couldn't open serial device \"%s\"(%s)\n", name, strerror(errno));
@@ -240,7 +240,7 @@ teSerial_Status eSerial_Read(unsigned char *data)
     return E_SERIAL_OK;
 }
 
-teSerial_Status eSerial_Write(const unsigned char data)
+teSerial_Status eSerial_Write(const unsigned char data)	//-实现一个字节的底层发送
 {
     int err, attempts = 0;
     
@@ -249,7 +249,7 @@ teSerial_Status eSerial_Write(const unsigned char data)
     err = write(serial_fd,&data,1);
     if (err < 0)
     {
-        if (errno == EAGAIN)
+        if (errno == EAGAIN)	//-再调用一次(也许下次就能成功)
         {
             for (attempts = 0; attempts <= 5; attempts++)
             {

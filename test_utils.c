@@ -78,16 +78,23 @@ static void show_help(void)
     printf("\n");
 }
 
+/*
+关于脱离线程的说明：
+使用pthread_create()函数创建线程时，函数第二个参数为NULL，则使用线程属性的默认
+参数，其中非分离属性需要程序退出之前运行pthread_join把各个线程归并到一起。如果
+想让线程向创建它的线程返回数据，就必须这样做。但是如果既不需要第二个线程向主线
+程返回信息，也不需要主线程等待它，可以设置分离属性，创建“脱离线程”。
+*/
 /* used by pvSerialReaderThread to send serial msg by detached thread */
-static void CreateDetachedThread( void * (*send_routine), void *arg)
+static void CreateDetachedThread( void * (*send_routine), void *arg)	//?创建分离线程
 {
     pthread_attr_t attr;
     pthread_t thread;
 
-    pthread_attr_init (&attr);
-    pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);
-    pthread_create (&thread, &attr, (void *)send_routine, arg);
-    pthread_attr_destroy (&attr);
+    pthread_attr_init (&attr);	//-初始化一个线程对象的属性,需要用pthread_attr_destroy函数对其去除初始化。
+    pthread_attr_setdetachstate (&attr, PTHREAD_CREATE_DETACHED);	//-线程分离属性设置
+    pthread_create (&thread, &attr, (void *)send_routine, arg);	//-最后一个参数是运行函数的参数
+    pthread_attr_destroy (&attr);	//-销毁线程属性结构,它在重新初始化之前不能重新使用
 }
 
 static void clear_txmsg_status()
@@ -888,9 +895,9 @@ static void ZCB_HandleMgmtLqiRsp(tsManagementLQIResponse *psMgmtLQIRsp)
 void init_global_vars(void)
 {
     // init all mutexs
-    pthread_mutex_init (&gSeialMsgSendMutex, NULL);
-    pthread_mutex_init (&gTxAckListMutex, NULL);
-    pthread_mutex_init (&gDevsListMutex, NULL);
+    pthread_mutex_init (&gSeialMsgSendMutex, NULL);	//-以动态方式创建互斥锁的，参数attr指定了新建互斥锁的属性。
+    pthread_mutex_init (&gTxAckListMutex, NULL);	//-如果参数attr为空，则使用默认的互斥锁属性，默认属性为快速互斥锁 。
+    pthread_mutex_init (&gDevsListMutex, NULL);	//-函数成功执行后，互斥锁被初始化为未锁住态。
 
     // init the list of joined devices
     memset(gatSavedDevList, 0, sizeof(gatSavedDevList));
@@ -910,14 +917,14 @@ teSL_Status eSL_SendMessage(uint16_t u16Type, uint16_t u16Length, void *pvMessag
     teSL_Status eStatus;
     int ret;
 
-    pthread_mutex_lock(&gSeialMsgSendMutex);
-    clear_txmsg_status();
+    pthread_mutex_lock(&gSeialMsgSendMutex);	//-上锁,如果已锁将阻塞等待
+    clear_txmsg_status();	//-清除发送标志位的状态
     eStatus = eSL_WriteMessage(u16Type, u16Length, (uint8_t *)pvMessage);
     if (eStatus == E_SL_OK)
     {
-        ret = check_txmsg_status(u16Type, 100);
+        ret = check_txmsg_status(u16Type, 100);	//-检查发送标志位的状态,确保对方已经收到,通过延时等待实现的,另一个线程在接收处理
         if (ret == 0)
-        {
+        {//-等到了需要的状态,即正确的
             // get the zcl seq num
             if(pu8SequenceNo)
                 *pu8SequenceNo = gTxMsgStatus.u8SequenceNo;
@@ -979,9 +986,16 @@ int input_cmd_handler(void)
     j = 0;
     cmd_start_flag = 0;
     cmd_end_flag = 0;
-    while(1)
-    {      
-      inputBuf[i] = getchar();
+    while(1)	//-阻塞等待命令,直到一个命令成功接收后返回
+    {
+    	//-当程序调用getchar时.程序就等着用户按键.用户输入的字符被存放在键盘缓冲
+    	//-区中.直到用户按回车为止（回车字符也放在缓冲区中）.当用户键入回车之后，
+    	//-getchar才开始从stdio流中每次读入一个字符.getchar函数的返回值是用户输
+    	//-入的字符的ASCII码，如出错返回-1，且将用户输入的字符回显到屏幕.如用户在
+    	//-按回车之前输入了不止一个字符，其他字符会保留在键盘缓存区中，等待后续
+    	//-getchar调用读取.也就是说，后续的getchar调用不会等待用户按键，而直接读
+    	//-取缓冲区中的字符，直到缓冲区中的字符读完为后，才等待用户按键.      
+      inputBuf[i] = getchar();	//-从stdio流中读字符，相当于getc(stdin），它从标准输入里读取下一个字符。
 	  if(inputBuf[i] != ' ')
           cmd_start_flag = 1;
       else
@@ -1063,7 +1077,7 @@ int input_cmd_handler(void)
         }
         else
         {
-            printf("\t***Allocate memory for mgmt lqi req failed.");
+            printf("\t***Allocate memory for mgmt lqi req failed.");
         }
     }
     else if (strcmp(cmd_str, LISTDEVS) == 0)
@@ -1237,12 +1251,12 @@ int input_cmd_handler(void)
     return 0;
 }
 
-void *pvSerialReaderThread(void *p)
+void *pvSerialReaderThread(void *p)	//-一个全新的线程处理函数
 {
     tsSL_Message  sMessage;
     tsSL_Msg_Status *psMsgStatus;
 
-    while (1)
+    while (1)	//-周期性的读数据,直到有为止
     {
         /* Initialise buffer */
         memset(&sMessage, 0, sizeof(tsSL_Message));
@@ -1250,9 +1264,9 @@ void *pvSerialReaderThread(void *p)
         sMessage.u16Length = 0xFFFF;
         
         if (eSL_ReadMessage(&sMessage.u16Type, &sMessage.u16Length, SL_MAX_MESSAGE_LENGTH, sMessage.au8Message) == E_SL_OK)
-        {
+        {//-下面的处理是针对接收到的完好正确报文进行的
            
-            if (verbosity >= 10)
+            if (verbosity >= 10)	//-调试信息的输出控制
             {
                 char acBuffer[4096];
                 int iPosition = 0, i;
@@ -1277,7 +1291,7 @@ void *pvSerialReaderThread(void *p)
 
                 case E_SL_MSG_STATUS:
                     psMsgStatus = (tsSL_Msg_Status *)sMessage.au8Message;
-                    set_txmsg_status(psMsgStatus);
+                    set_txmsg_status(psMsgStatus);	//-根据接收到的报文进行标志位的设置
                     /* add some tips on execute result of some cmds */
                     //printf("\n msg status for 0x%04X ", htons(psMsgStatus->u16MessageType));
                     if (ntohs(psMsgStatus->u16MessageType) == E_SL_MSG_ERASE_PERSISTENT_DATA)
