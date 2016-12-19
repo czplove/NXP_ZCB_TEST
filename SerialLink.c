@@ -277,7 +277,7 @@ teSL_Status eSL_WriteMessage(uint16_t u16Type, uint16_t u16Length, uint8_t *pu8D
         {
             iPosition += sprintf(&acBuffer[iPosition], " 0x%02X ", pu8Data[i]);
         }
-        printf( "%s", acBuffer);
+        printf( "%s\n", acBuffer);
     }
     //-这里开始对原始数据进行发送,转译不用应用层考虑
     /* Send start character */

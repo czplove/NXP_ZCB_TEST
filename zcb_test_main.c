@@ -21,7 +21,8 @@
 
 #define VER_INFO "1.3.3"
 
-static char *pcSerialDevice = "/dev/ttyS0";
+//-static char *pcSerialDevice = "/dev/ttyS0";
+static char *pcSerialDevice = "/dev/ttyUSB0";	//-?????????USB???
 static uint32_t u32BaudRate = 1000000;
 
 static int gSerial_fd = 0;

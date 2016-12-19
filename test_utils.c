@@ -59,7 +59,8 @@ static uint32_t gu32NumOfTxCmd;
 static uint32_t gu32NumOfAckedTxCmd;
 static uint8_t  gu8CheckDefRespFlag=0;
 
-int verbosity = 1;               /** Default log level */
+//-int verbosity = 1;               /** Default log level */
+int verbosity = 11; 
 
 extern uint32_t 	gu32RfActiveOutDioMask;
 extern uint32_t 	gu32StatusOutDioMask;
@@ -1276,7 +1277,7 @@ void *pvSerialReaderThread(void *p)	//-一个全新的线程处理函数
                 {
                     iPosition += sprintf(&acBuffer[iPosition], " 0x%02X", sMessage.au8Message[i]);
                 }
-                printf( "\t%s", acBuffer);
+                printf( "\n\t%s", acBuffer);	//-\t 的意思是 横向跳到下一制表符位置
             }
 
             switch (sMessage.u16Type)
