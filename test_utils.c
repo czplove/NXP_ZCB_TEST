@@ -23,8 +23,9 @@
 #define SETTXPLEVEL "settxplevel"
 #define SETRXPLEVEL "setrxplevel"
 
-
+#define GETVERSION_CMD  "getversion"
 #define QUIT_CMD  "quit"
+
 
 static tsSL_Msg_Status gTxMsgStatus;
 static pthread_mutex_t gSeialMsgSendMutex;
@@ -49,6 +50,7 @@ static tsInputCmd gaInputCmdList[] =
     {CONFIGREPORT" <DstShorAddr> <ClusterId> <AttrId> <AttrType> <MinInterval> <MaxInterval>", "Send config attribute command to a remote device, by default the using srcEP and dstEP are both 1, \n\t  <DstShorAddr> is the destination short addr to send command, in hex fmt 0xXXXX, \n\t  <ClusterId> is the cluster id to be configured, 16 bit in hex fmt, start with 0x, such as 0x0006, \n\t  <AttrId> is the attribute id to be configured, 16 bit in hex fmt, start with 0x, such as 0x0000, \n\t  <AttrType> is data type of the specified attribute id, 8 bit in hex fmt, start with 0x, such as 0x10, \n\t  <MinInterval> is the minimal report interval, uint is second, in decimal fmt, 1~65535, \n\t  <MaxInterval> is the maximal report interval, unit is second, in decimal fmt, 60~65535, should bigger than <MinInterval>, \n\t  eg. to config a OnOff attribute whose short addr is 0xC616 with min interval as 2 and max interval as 60, the cmd is: \n\t\tconfigreport 0xC616 0x6 0x0 0x10 2 60"},
     {SETTXPLEVEL" <PriorityLevel>", "Sets the number of retry attempts until the priority pin is raised high, \n\t  <PriorityLevel> is within range 0~3"},
     {SETRXPLEVEL" <EnableDisable>", "Enable or disable the priority for receiving pkts, 0-disable, 1-enable "},
+    {GETVERSION_CMD, "get version of ZCB."},
     {QUIT_CMD, "Quit the test application."},
 };
 
@@ -1243,6 +1245,11 @@ int input_cmd_handler(void)
     else if (strcmp(cmd_str, QUIT_CMD) == 0)
     {
         return 1;
+    }
+    else if (strcmp(cmd_str, GETVERSION_CMD) == 0)
+    {
+    		//-send GetVersion command to ZCB
+    		eSL_SendMessage(E_SL_MSG_GET_VERSION, 0, NULL, NULL);
     }
     else if (strcmp(cmd_str, "") != 0)
     {
