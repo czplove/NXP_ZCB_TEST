@@ -24,6 +24,7 @@
 #define SETRXPLEVEL "setrxplevel"
 
 #define GETVERSION_CMD  "getversion"
+#define WRITEATTR  "writeattr"
 #define QUIT_CMD  "quit"
 
 
@@ -51,6 +52,7 @@ static tsInputCmd gaInputCmdList[] =
     {SETTXPLEVEL" <PriorityLevel>", "Sets the number of retry attempts until the priority pin is raised high, \n\t  <PriorityLevel> is within range 0~3"},
     {SETRXPLEVEL" <EnableDisable>", "Enable or disable the priority for receiving pkts, 0-disable, 1-enable "},
     {GETVERSION_CMD, "get version of ZCB."},
+    {WRITEATTR" <DstShortAddr> <ClusterId> <u8Direction> <AttrId> <AttrType> <AttrDate> ", "Write attribute to a remote device, in the write attribute command, by\n\t  default the using srcEP and dstEP are both 1, and the attribute to write\n\t  is zcl verion attribute of basic cluster,\n\t  <DstShortAddr> is the destination short addr to send command, in hex fmt 0xXXXX."},
     {QUIT_CMD, "Quit the test application."},
 };
 
@@ -531,6 +533,205 @@ static teSL_Status ZDReadAttrReq(
 
   return eStatus;
 }
+
+// ------------------------------------------------------------------
+// Write attribute
+// ------------------------------------------------------------------
+
+teZcbStatus eZCB_WriteAttributeRequest(uint16_t u16ShortAddress,
+                                    uint16_t u16ClusterID,
+                                    uint8_t u8Direction, 
+                                    uint8_t u8ManufacturerSpecific, 
+                                    uint16_t u16ManufacturerID,
+                                    uint16_t u16AttributeID, 
+                                    teZCL_ZCLAttributeType eType, 
+                                    void *pvData)
+{
+    struct _WriteAttributeRequest
+    {
+        uint8_t     u8TargetAddressMode;
+        uint16_t    u16TargetAddress;
+        uint8_t     u8SourceEndpoint;
+        uint8_t     u8DestinationEndpoint;
+        uint16_t    u16ClusterID;
+        uint8_t     u8Direction;
+        uint8_t     u8ManufacturerSpecific;
+        uint16_t    u16ManufacturerID;
+        uint8_t     u8NumAttributes;
+        uint16_t    u16AttributeID;
+        uint8_t     u8Type;
+        union
+        {
+            uint8_t     u8Data;
+            uint16_t    u16Data;
+            uint32_t    u32Data;
+            uint64_t    u64Data;
+        } uData;
+    } __attribute__((__packed__)) sWriteAttributeRequest;
+    
+#if 0
+    struct _WriteAttributeResponse
+    {
+        /**\todo ZCB-Sheffield: handle default response properly */
+        uint8_t     au8ZCLHeader[3];
+        uint16_t    u16MessageType;
+        
+        uint8_t     u8SequenceNo;
+        uint16_t    u16ShortAddress;
+        uint8_t     u8Endpoint;
+        uint16_t    u16ClusterID;
+        uint16_t    u16AttributeID;
+        uint8_t     u8Status;
+        uint8_t     u8Type;
+        union
+        {
+            uint8_t     u8Data;
+            uint16_t    u16Data;
+            uint32_t    u32Data;
+            uint64_t    u64Data;
+        } uData;
+    } __attribute__((__packed__)) *psWriteAttributeResponse = NULL;
+#endif
+    
+    struct _DataIndication
+    {
+        /**\todo ZCB-Sheffield: handle data indication properly */
+        uint8_t     u8ZCBStatus;
+        uint16_t    u16ProfileID;
+        uint16_t    u16ClusterID;
+        uint8_t     u8SourceEndpoint;
+        uint8_t     u8DestinationEndpoint;
+        uint8_t     u8SourceAddressMode;
+        uint16_t    u16SourceShortAddress; /* OR uint64_t u64IEEEAddress */
+        uint8_t     u8DestinationAddressMode;
+        uint16_t    u16DestinationShortAddress; /* OR uint64_t u64IEEEAddress */
+        
+        uint8_t     u8FrameControl;
+        uint8_t     u8SequenceNo;
+        uint8_t     u8Command;
+        uint8_t     u8Status;
+        uint16_t    u16AttributeID;
+    } __attribute__((__packed__)) *psDataIndication = NULL;
+
+    
+    uint16_t u16Length = sizeof(struct _WriteAttributeRequest) - sizeof(sWriteAttributeRequest.uData);
+    uint8_t u8SequenceNo;
+    teZcbStatus eStatus = E_ZCB_COMMS_FAILED;
+    
+    DEBUG_PRINTF("Send Write Attribute request to 0x%04X\n", u16ShortAddress);
+    
+    sWriteAttributeRequest.u8TargetAddressMode   = E_ZB_ADDRESS_MODE_SHORT_NO_ACK;
+    sWriteAttributeRequest.u16TargetAddress      = htons(u16ShortAddress);
+    sWriteAttributeRequest.u8SourceEndpoint      = ZB_ENDPOINT_ATTR;
+    sWriteAttributeRequest.u8DestinationEndpoint = ZB_ENDPOINT_ATTR;
+    
+    sWriteAttributeRequest.u16ClusterID             = htons(u16ClusterID);
+    sWriteAttributeRequest.u8Direction              = u8Direction;
+    sWriteAttributeRequest.u8ManufacturerSpecific   = u8ManufacturerSpecific;
+    sWriteAttributeRequest.u16ManufacturerID        = htons(u16ManufacturerID);
+    sWriteAttributeRequest.u8NumAttributes          = 1;
+    sWriteAttributeRequest.u16AttributeID           = htons(u16AttributeID);
+    sWriteAttributeRequest.u8Type                   = (uint8_t)eType;
+    
+    switch(eType)
+    {
+        case(E_ZCL_GINT8):
+        case(E_ZCL_UINT8):
+        case(E_ZCL_INT8):
+        case(E_ZCL_ENUM8):
+        case(E_ZCL_BMAP8):
+        case(E_ZCL_BOOL):
+        case(E_ZCL_OSTRING):
+        case(E_ZCL_CSTRING):
+            memcpy(&sWriteAttributeRequest.uData.u8Data, pvData, sizeof(uint8_t));
+                        u16Length += sizeof(uint8_t);
+            break;
+        
+        case(E_ZCL_LOSTRING):
+        case(E_ZCL_LCSTRING):
+        case(E_ZCL_STRUCT):
+        case(E_ZCL_INT16):
+        case(E_ZCL_UINT16):
+        case(E_ZCL_ENUM16):
+        case(E_ZCL_CLUSTER_ID):
+        case(E_ZCL_ATTRIBUTE_ID):
+            memcpy(&sWriteAttributeRequest.uData.u16Data, pvData, sizeof(uint16_t));
+            sWriteAttributeRequest.uData.u16Data = ntohs(sWriteAttributeRequest.uData.u16Data);
+                        u16Length += sizeof(uint16_t);
+            break;
+
+        case(E_ZCL_UINT24):
+        case(E_ZCL_UINT32):
+        case(E_ZCL_TOD):
+        case(E_ZCL_DATE):
+        case(E_ZCL_UTCT):
+        case(E_ZCL_BACNET_OID):
+            memcpy(&sWriteAttributeRequest.uData.u32Data, pvData, sizeof(uint32_t));
+            sWriteAttributeRequest.uData.u32Data = ntohl(sWriteAttributeRequest.uData.u32Data);
+                        u16Length += sizeof(uint32_t);
+            break;
+
+        case(E_ZCL_UINT40):
+        case(E_ZCL_UINT48):
+        case(E_ZCL_UINT56):
+        case(E_ZCL_UINT64):
+        case(E_ZCL_IEEE_ADDR):
+            memcpy(&sWriteAttributeRequest.uData.u64Data, pvData, sizeof(uint64_t));
+            sWriteAttributeRequest.uData.u64Data = be64toh(sWriteAttributeRequest.uData.u64Data);
+                        u16Length += sizeof(uint64_t);
+            break;
+            
+        default:
+            printf( "Unknown attribute data type (%d)", eType);
+            return E_ZCB_ERROR;
+    }
+    
+//    printf( "sWriteAttributeRequest:\n" );
+//    dump( (char *)&sWriteAttributeRequest, u16Length );
+    
+    if (eSL_SendMessage(0x0110 /*E_SL_MSG_WRITE_ATTRIBUTE_REQUEST*/, u16Length, &sWriteAttributeRequest, &u8SequenceNo) != E_SL_OK)
+    {
+// printf( "kok1\n" );
+        goto done;
+    }
+    
+    while (1)
+    {
+// printf( "kok2\n" );
+        /* Wait 1 second for the message to arrive */
+        /**\todo ZCB-Sheffield: handle data indication here for now - BAD Idea! Implement a general case handler in future! */
+        //-先不考虑这种出错情况,后续需要把下面等待函数理解然后移植过来考虑
+        //-if (eSL_MessageWait(E_SL_MSG_DATA_INDICATION, 1000, &u16Length, (void**)&psDataIndication) != E_SL_OK)
+        //-{
+        //-    DEBUG_PRINTF( "No response to write attribute request\n");
+        //-    eStatus = E_ZCB_COMMS_FAILED;
+        //-    goto done;
+        //-}
+        IOT_SLEEP(1);
+        
+        DEBUG_PRINTF( "Got data indication\n");
+        
+        //-if (u8SequenceNo == psDataIndication->u8SequenceNo)
+        //-{
+            break;
+        //-}
+        //-else
+        //-{
+        //-    printf( "Write Attribute sequence number received 0x%02X does not match that sent 0x%02X\n", psDataIndication->u8SequenceNo, u8SequenceNo);
+        //-    goto done;
+        //-}
+    }
+    
+    DEBUG_PRINTF( "Got write attribute response\n");
+    
+    //-eStatus = psDataIndication->u8Status;	//-如果没有赋值而进行了这里的操作就会系统崩溃,报Segmentation fault (core dumped)错误
+
+done:
+    free(psDataIndication);
+// printf( "kok3\n" );
+    return eStatus;
+}
+
 
 static teZcbStatus ZDOnOffCmd( uint16_t u16ShortAddress, 
                               uint8_t u8SrcEndpoint,
@@ -1251,6 +1452,36 @@ int input_cmd_handler(void)
     		//-send GetVersion command to ZCB
     		eSL_SendMessage(E_SL_MSG_GET_VERSION, 0, NULL, NULL);
     }
+    else if (strcmp(cmd_str, WRITEATTR) == 0)
+    {
+    		int ZCL_MANUFACTURER_CODE = 0x1037;  // NXP
+    		int			DstShortAddr,ClusterId,u8Direction,AttrId,AttrType;
+    		//-char	 AttrDate_buf[16];
+    		uint64_t	AttrDate;
+    		sscanf(inputBuf + cmd_para_start_index, "0x%x 0x%x 0x%x 0x%x 0x%x 0x%llx", 
+               &DstShortAddr,
+               &ClusterId,
+               &u8Direction,
+               &AttrId,
+               &AttrType,
+               &AttrDate);
+        //-uint64_t	AttrDate = atoi(AttrDate_buf);        
+        printf("\tdstAddr=0x%04X, ClusterId=0x%04X, u8Direction=0x%02X, AttrId=0x%04X, AttrType=0x%02X, AttrDate=0x%llx, \n", DstShortAddr, ClusterId, u8Direction, AttrId, AttrType, AttrDate);       
+	    	teZcbStatus eStatus = eZCB_WriteAttributeRequest(
+			  (uint16_t)DstShortAddr,                                       // ShortAddress
+			  (uint16_t)ClusterId,                        // Cluster ID
+			  (uint8_t)u8Direction,                                                     // Direction
+			  1,                                                     // Manufacturer Specific
+			  ZCL_MANUFACTURER_CODE,                                 // Manufacturer ID
+			  (uint16_t)AttrId,  // Attr ID
+			  (teZCL_ZCLAttributeType)AttrType,                                          // eType
+			  (void *)&AttrDate );                          // &data
+								    
+		    if (E_ZCB_OK != eStatus)
+		    {
+		        DEBUG_PRINTF("eZCB_WriteAttributeRequest returned status %d\n", eStatus);
+		    }
+    }	
     else if (strcmp(cmd_str, "") != 0)
     {
         printf("\tUnkown cmd.\n");

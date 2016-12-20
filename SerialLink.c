@@ -91,6 +91,55 @@ typedef enum
     E_STATE_RX_WAIT_DATA,
 } teSL_RxState;
 
+/** Linked list structure for a callback function entry */
+typedef struct _tsSL_CallbackEntry
+{
+    uint16_t                u16Type;        /**< Message type for this callback */
+    tprSL_MessageCallback   prCallback;     /**< User supplied callback function for this message type */
+    void                    *pvUser;        /**< User supplied data for the callback function */
+    struct _tsSL_CallbackEntry *psNext;     /**< Pointer to next in linked list */
+} tsSL_CallbackEntry;
+
+/** Structure of data for the serial link */
+typedef struct
+{
+    int     iSerialFd;
+
+#ifndef WIN32
+    pthread_mutex_t         mutex;
+#endif /* WIN32 */
+    
+    struct
+    {
+#ifndef WIN32
+        pthread_mutex_t         mutex;
+#endif /* WIN32 */
+        tsSL_CallbackEntry      *psListHead;
+    } sCallbacks;
+    
+    //-tsUtilsQueue sCallbackQueue;
+    //-tsUtilsThread sCallbackThread;
+    
+    // Array of listeners for messages
+    // eSL_MessageWait uses this array to wait on incoming messages.
+    struct 
+    {
+        uint16_t u16Type;
+        uint16_t u16Length;
+        uint8_t *pu8Message;
+#ifndef WIN32
+        pthread_mutex_t mutex;
+        pthread_cond_t cond_data_available;
+#else
+    
+#endif /* WIN32 */
+    } asReaderMessageQueue[SL_MAX_MESSAGE_QUEUES];
+
+    
+    //-tsUtilsThread sSerialReader;
+} tsSerialLink;
+
+
 /****************************************************************************/
 /***        Local Function Prototypes                                     ***/
 /****************************************************************************/
@@ -119,6 +168,83 @@ extern int verbosity;
 /****************************************************************************/
 /***        Local Functions                                               ***/
 /****************************************************************************/
+
+//teSL_Status eSL_MessageWait(uint16_t u16Type, uint32_t u32WaitTimeout, uint16_t *pu16Length, void **ppvMessage)
+//{
+//    int i;
+//    tsSerialLink *psSerialLink = &sSerialLink;
+//    
+//    for (i = 0; i < SL_MAX_MESSAGE_QUEUES; i++)
+//    {
+//        DBG_vPrintf(DBG_SERIALLINK_QUEUE, "Locking queue %d mutex\n", i);
+//        pthread_mutex_lock(&psSerialLink->asReaderMessageQueue[i].mutex);
+//        DBG_vPrintf(DBG_SERIALLINK_QUEUE, "Acquired queue %d mutex\n", i);
+//    
+//        if (psSerialLink->asReaderMessageQueue[i].u16Type == 0)
+//        {
+//            struct timeval sNow;
+//            struct timespec sTimeout;
+//            
+//            DBG_vPrintf(DBG_SERIALLINK_QUEUE, "Found free slot %d to wait for message 0x%04X\n", i, u16Type);
+//        
+//            psSerialLink->asReaderMessageQueue[i].u16Type = u16Type;
+//            
+//            if (u16Type == E_SL_MSG_STATUS)
+//            {
+//                psSerialLink->asReaderMessageQueue[i].pu8Message = *ppvMessage;
+//            }
+//
+//            memset(&sNow, 0, sizeof(struct timeval));
+//            gettimeofday(&sNow, NULL);
+//            sTimeout.tv_sec = sNow.tv_sec + (u32WaitTimeout/1000);
+//            sTimeout.tv_nsec = (sNow.tv_usec + ((u32WaitTimeout % 1000) * 1000)) * 1000;
+//            if (sTimeout.tv_nsec > 1000000000)
+//            {
+//                sTimeout.tv_sec++;
+//                sTimeout.tv_nsec -= 1000000000;
+//            }
+//            DBG_vPrintf(DBG_SERIALLINK_QUEUE, "Time now    %lu s, %lu ns\n", sNow.tv_sec, sNow.tv_usec * 1000);
+//            DBG_vPrintf(DBG_SERIALLINK_QUEUE, "Wait until  %lu s, %lu ns\n", sTimeout.tv_sec, sTimeout.tv_nsec);
+//
+//            switch (pthread_cond_timedwait(&psSerialLink->asReaderMessageQueue[i].cond_data_available, &psSerialLink->asReaderMessageQueue[i].mutex, &sTimeout))
+//            {
+//                case (0):
+//                    DBG_vPrintf(DBG_SERIALLINK_QUEUE, "Got message type 0x%04x, length %d\n", 
+//                                psSerialLink->asReaderMessageQueue[i].u16Type, 
+//                                psSerialLink->asReaderMessageQueue[i].u16Length);
+//                    *pu16Length = psSerialLink->asReaderMessageQueue[i].u16Length;
+//                    *ppvMessage = psSerialLink->asReaderMessageQueue[i].pu8Message;
+//                    
+//                    /* Reset queue for next user */
+//                    psSerialLink->asReaderMessageQueue[i].u16Type = 0;
+//                    pthread_mutex_unlock(&psSerialLink->asReaderMessageQueue[i].mutex);
+//                    return E_SL_OK;
+//                
+//                case (ETIMEDOUT):
+//                    DBG_vPrintf(DBG_SERIALLINK_QUEUE, "Timed out\n");
+//                    /* Reset queue for next user */
+//                    psSerialLink->asReaderMessageQueue[i].u16Type = 0;
+//                    pthread_mutex_unlock(&psSerialLink->asReaderMessageQueue[i].mutex);
+//                    return E_SL_NOMESSAGE;
+//                    break;
+//                
+//                default:
+//                    /* Reset queue for next user */
+//                    psSerialLink->asReaderMessageQueue[i].u16Type = 0;
+//                    pthread_mutex_unlock(&psSerialLink->asReaderMessageQueue[i].mutex);
+//                    return E_SL_ERROR;
+//            }
+//        }
+//        else
+//        {
+//            pthread_mutex_unlock(&psSerialLink->asReaderMessageQueue[i].mutex);
+//        }
+//    }
+//    DBG_vPrintf(DBG_SERIALLINK_QUEUE, "Error, no free queue slots\n");
+//    return E_SL_ERROR;
+//}
+
+
 //-读串口数据,如果没有立即返回,如果有那么进行最底层的转译,校验等,把最终报文进行返回
 teSL_Status eSL_ReadMessage(uint16_t *pu16Type, uint16_t *pu16Length, uint16_t u16MaxLength, uint8_t *pu8Message)
 {

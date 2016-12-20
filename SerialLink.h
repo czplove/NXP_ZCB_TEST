@@ -361,6 +361,14 @@ typedef struct
     uint8_t             au8Payload[];
 } PACKED tsSL_Msg_Data_Indication;
 
+/** Callback function for a given message type 
+ *  \param pvUser           User supplied pointer to be passed to the callback function
+ *  \param u16Length        Length of the received message
+ *  \param pvMessage        Pointer to the message data.
+ *  \return Nothing
+ */
+typedef void (*tprSL_MessageCallback)(void *pvUser, uint16_t u16Length, void *pvMessage);
+
 /****************************************************************************/
 /***        Local Function Prototypes                                     ***/
 /****************************************************************************/

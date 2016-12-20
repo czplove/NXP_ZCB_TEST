@@ -15,6 +15,19 @@ extern "C" {
 
 #define MAXDEVNUM 300
 
+// ------------------------------------------------------------------
+// Endpoints
+// ------------------------------------------------------------------
+
+#define ZB_ENDPOINT_ZHA             1   // Zigbee-HA
+#define ZB_ENDPOINT_ONOFF           1   // ON/OFF cluster
+#define ZB_ENDPOINT_GROUP           1   // GROUP cluster
+#define ZB_ENDPOINT_SCENE           1   // SCENE cluster
+#define ZB_ENDPOINT_SIMPLE          1   // SimpleDescriptor cluster
+#define ZB_ENDPOINT_LAMP            1   // ON/OFF, Color control
+#define ZB_ENDPOINT_TUNNEL          1   // For tunnel mesages
+#define ZB_ENDPOINT_ATTR            1   // For attrs
+
 /** Enumerated type of module modes */
 typedef enum
 {
@@ -22,6 +35,20 @@ typedef enum
     E_MODE_ROUTER           = 1,        /**< Start module as a router */
     E_MODE_HA_COMPATABILITY = 2,        /**< Start module as router in HA compatability mode */
 } teModuleMode;
+
+/** Enumerated type of ZigBee address modes */
+typedef enum
+{
+    E_ZB_ADDRESS_MODE_BOUND                 = 0x00,
+    E_ZB_ADDRESS_MODE_GROUP                 = 0x01,
+    E_ZB_ADDRESS_MODE_SHORT                 = 0x02,
+    E_ZB_ADDRESS_MODE_IEEE                  = 0x03,
+    E_ZB_ADDRESS_MODE_BROADCAST             = 0x04,
+    E_ZB_ADDRESS_MODE_NO_TRANSMIT           = 0x05,
+    E_ZB_ADDRESS_MODE_BOUND_NO_ACK          = 0x06,
+    E_ZB_ADDRESS_MODE_SHORT_NO_ACK          = 0x07,
+    E_ZB_ADDRESS_MODE_IEEE_NO_ACK           = 0x08,
+} eZigbee_AddressMode;
 
 typedef enum
 {
