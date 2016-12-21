@@ -620,14 +620,14 @@ teZcbStatus eZCB_WriteAttributeRequest(uint16_t u16ShortAddress,
     
     DEBUG_PRINTF("Send Write Attribute request to 0x%04X\n", u16ShortAddress);
     
-    sWriteAttributeRequest.u8TargetAddressMode   = E_ZB_ADDRESS_MODE_SHORT_NO_ACK;
+    sWriteAttributeRequest.u8TargetAddressMode   = E_ZB_ADDRESS_MODE_SHORT;	//-地址模式需要注意
     sWriteAttributeRequest.u16TargetAddress      = htons(u16ShortAddress);
     sWriteAttributeRequest.u8SourceEndpoint      = ZB_ENDPOINT_ATTR;
     sWriteAttributeRequest.u8DestinationEndpoint = ZB_ENDPOINT_ATTR;
     
     sWriteAttributeRequest.u16ClusterID             = htons(u16ClusterID);
-    sWriteAttributeRequest.u8Direction              = u8Direction;
-    sWriteAttributeRequest.u8ManufacturerSpecific   = u8ManufacturerSpecific;
+    sWriteAttributeRequest.u8Direction              = u8Direction;	//-0表示客户端到服务器
+    sWriteAttributeRequest.u8ManufacturerSpecific   = u8ManufacturerSpecific;	//-0表示不指定制造商,在最终无线报文中将不包含
     sWriteAttributeRequest.u16ManufacturerID        = htons(u16ManufacturerID);
     sWriteAttributeRequest.u8NumAttributes          = 1;
     sWriteAttributeRequest.u16AttributeID           = htons(u16AttributeID);
@@ -708,9 +708,32 @@ teZcbStatus eZCB_WriteAttributeRequest(uint16_t u16ShortAddress,
         //-    goto done;
         //-}
         IOT_SLEEP(1);
+        IOT_SLEEP(1);
+        IOT_SLEEP(1);
         
-        DEBUG_PRINTF( "Got data indication\n");
+        DEBUG_PRINTF( "send Zone Enroll Response to set Zone ID\n");
         
+        struct _SendZoneEnrollResponse
+		    {
+		        uint8_t     u8TargetAddressMode;
+		        uint16_t    u16TargetAddress;
+		        uint8_t     u8SourceEndpoint;
+		        uint8_t     u8DestinationEndpoint;
+		        uint8_t     u8Enrollresponsecode;
+		        uint8_t     u8ZoneID;		        
+		    } __attribute__((__packed__)) sSendZoneEnrollResponse;
+		    
+		    static uint8_t ZoneID = 0;
+        
+        sSendZoneEnrollResponse.u8TargetAddressMode = 0x02;
+        sSendZoneEnrollResponse.u16TargetAddress = htons(u16ShortAddress);
+        sSendZoneEnrollResponse.u8SourceEndpoint = 1;
+        sSendZoneEnrollResponse.u8DestinationEndpoint = 1;
+        sSendZoneEnrollResponse.u8Enrollresponsecode = 0;
+        sSendZoneEnrollResponse.u8ZoneID = ZoneID++;
+        
+        u16Length = 0x0007;
+        eStatus = eSL_SendMessage(0x0400 /*E_SL_MSG_SEND_IAS_ZONE_ENROLL_RSP*/, u16Length, &sSendZoneEnrollResponse, &u8SequenceNo);
         //-if (u8SequenceNo == psDataIndication->u8SequenceNo)
         //-{
             break;
@@ -1453,7 +1476,7 @@ int input_cmd_handler(void)
     		eSL_SendMessage(E_SL_MSG_GET_VERSION, 0, NULL, NULL);
     }
     else if (strcmp(cmd_str, WRITEATTR) == 0)
-    {
+    {//-特别针对IAS设备enroll登记过程的
     		int ZCL_MANUFACTURER_CODE = 0x1037;  // NXP
     		int			DstShortAddr,ClusterId,u8Direction,AttrId,AttrType;
     		//-char	 AttrDate_buf[16];
@@ -1471,7 +1494,7 @@ int input_cmd_handler(void)
 			  (uint16_t)DstShortAddr,                                       // ShortAddress
 			  (uint16_t)ClusterId,                        // Cluster ID
 			  (uint8_t)u8Direction,                                                     // Direction
-			  1,                                                     // Manufacturer Specific
+			  0,                                                     // Manufacturer Specific
 			  ZCL_MANUFACTURER_CODE,                                 // Manufacturer ID
 			  (uint16_t)AttrId,  // Attr ID
 			  (teZCL_ZCLAttributeType)AttrType,                                          // eType
